@@ -1,0 +1,20 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Parameters usage
+
+Parameters:
+  AMI:
+   Type: String
+  MyInstanceType:
+   Type: String
+  Subnet:
+    Type: AWS::EC2::Subnet::Id
+
+Resources:
+  MyEC2Instance:
+    Type: AWS::EC2::Instance
+    Description: An EC2 Instance
+    Properties:
+      ImageId:
+        !Ref AMI
+      InstanceType:
+        !Ref MyInstanceType
