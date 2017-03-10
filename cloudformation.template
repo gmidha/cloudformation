@@ -1,0 +1,52 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Hello World! example
+Parameters:
+  VPC:
+    Description: The default VPC
+    Type: AWS::EC2::VPC::Id
+  Subnet:
+    Description: A public subnet from default VPC.
+    Type: AWS::EC2::Subnet::Id
+Mappings:
+  RegionMap:
+    us-east-1:
+      AMI: ami-bb5642ac
+    us-west-2:
+      AMI: ami-560fbb36
+Resources:
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !FindInMap [RegionMap, !Ref 'AWS::Region', AMI]
+      InstanceType: t2.micro
+      NetworkInterfaces:
+      - AssociatePublicIpAddress: 'true'
+        DeviceIndex: '0'
+        GroupSet:
+        - !Ref WebserverSecurityGroup
+        SubnetId: !Ref Subnet
+      Tags:
+      - Key: Name
+        Value: gmidha_instance
+      UserData:
+        'Fn::Base64': !Sub |
+          #!/bin/bash -x
+          yum install -y httpd
+          cd /var/www/html
+          echo "<html><body>Hello Gaurav!</body></html>" > index.html
+          service httpd start
+  WebserverSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: hello-gaurav-webserver
+      VpcId:
+        Ref: VPC
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: 80
+        IpProtocol: tcp
+        ToPort: 80
+Outputs:
+  HelloWorldURL:
+    Description: The URL pointing to Hello World!.
+    Value: !Sub 'http://${EC2Instance.PublicIp}'
