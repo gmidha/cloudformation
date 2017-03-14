@@ -1,0 +1,140 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Parameters usage
+
+Parameters:
+  AMI:
+    Description: AMI to start virtual server
+    Type: String
+    MinLength: 12
+    MaxLength: 12
+
+  MyInstanceType:
+    Description: Instance Type of virtual server
+    Type: String
+    AllowedValues:
+    - t2.micro
+    - t2.small
+    - t2.medium
+
+  Subnet:
+    Description: Subnet to launch the virtual server in
+    Type: AWS::EC2::Subnet::Id
+
+  URL:
+    Description: Url of the website
+    Type: String
+    Default: http://widdix.net/
+
+  KeyName:
+    Description: EC2 key pair
+    Type: AWS::EC2::KeyPair::KeyName
+
+  MyVPC:
+    Description: My VPC
+    Type: AWS::EC2::VPC::Id
+
+
+
+Resources:
+  MyEC2Instance:
+    Type: AWS::EC2::Instance
+    Description: An EC2 Instance
+    Properties:
+      ImageId:
+        !Ref AMI
+      InstanceType:
+        !Ref MyInstanceType
+      SubnetId:
+        !Ref Subnet
+      Tags:
+      - Key: Name
+        Value: Ec2serverwithparameters
+      UserData:
+        "Fn::Base64": !Sub |
+           #!/bin/bash -ex
+           yum install -y httpd
+           echo "<html><body>hello world! I am in EC2 Instance 1.</body></html>" > /var/www/html/index.html
+           service httpd start
+      KeyName:
+        !Ref KeyName
+      SecurityGroupIds:
+      - !Ref MyEC2SecurityGroup
+  MyEC2Instance2:
+    Type: AWS::EC2::Instance
+    Description: Second EC2 Instance
+    Properties:
+      ImageId:
+        !Ref AMI
+      InstanceType:
+        !Ref MyInstanceType
+      SubnetId:
+        !Ref Subnet
+      Tags:
+      - Key: Name
+        Value: Ec2serverwithparameters
+      UserData:
+        "Fn::Base64": !Sub |
+           #!/bin/bash -ex
+           yum install -y httpd
+           echo "<html><body>hello world! I am in Ec2 Instance2</body></html>" > /var/www/html/index.html
+           service httpd start
+      KeyName:
+        !Ref KeyName
+      SecurityGroupIds:
+      - !Ref MyEC2SecurityGroup
+
+  MyEC2SecurityGroup:
+   Type: AWS::EC2::SecurityGroup
+   Properties:
+     GroupDescription: EC2Instance Security Group
+     SecurityGroupIngress:
+     - IpProtocol: tcp
+       ToPort: 22
+       FromPort: 22
+       CidrIp: 0.0.0.0/0
+     - IpProtocol: tcp
+       ToPort: 80
+       FromPort: 80
+       CidrIp: 0.0.0.0/0
+     VpcId: !Ref MyVPC
+     Tags:
+     - Key: Name
+       Value: Ec2securitygroup
+  ElasticLB:
+   Type: AWS::ElasticLoadBalancing::LoadBalancer
+   Properties:
+     AvailabilityZones:
+       Fn::GetAZs: ''
+     Instances:
+     - Ref: MyEC2Instance
+     - Ref: MyEC2Instance2
+     Listeners:
+     - LoadBalancerPort: '80'
+       InstancePort: '80'
+       Protocol: HTTP
+     HealthCheck:
+       Target:
+         Fn::Join:
+         - ''
+         - - 'HTTP:'
+           - '80'
+           - "/index.html"
+       HealthyThreshold: '3'
+       UnhealthyThreshold: '5'
+       Interval: '5'
+       Timeout: '2'
+  ASGroup:
+   Type: AWS::AutoScaling::AutoScalingGroup
+   Properties:
+     AvailabilityZones:
+       Fn::GetAZs: " "
+     InstanceId:
+       !Ref MyEC2Instance
+     MinSize: "2"
+     MaxSize: "2"
+     LoadBalancerNames:
+       - Ref: ElasticLB
+Outputs:
+  MyELB:
+    Description: my Elastic Load Balancer
+    Value: !GetAtt ElasticLB.DNSName
