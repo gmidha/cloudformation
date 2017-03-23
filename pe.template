@@ -1,0 +1,107 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Puppet Enterprise Install on EC2
+
+Parameters:
+  KeyName:
+    Description: EC2 key pair
+    Type: AWS::EC2::KeyPair::KeyName
+  Subnet:
+    Description: Subnet to launch the virtual server in
+    Type: AWS::EC2::Subnet::Id
+  MyVPC:
+    Description: My VPC
+    Type: AWS::EC2::VPC::Id
+  MyInstanceType:
+    Description: Instance Type of virtual server
+    Type: String
+    Default: t2.medium
+    AllowedValues:
+    - t2.micro
+    - t2.small
+    - t2.medium
+
+
+
+Mappings:
+  AWSAMIRegionMap:
+    us-east-1:
+      ami: ami-f4cc1de2
+    us-west-2:
+      ami: ami-a58d0dc5
+
+Resources:
+  PuppetMaster:
+    Type: AWS::EC2::Instance
+    Description: A Puppet Master EC2 Instance
+    Properties:
+      ImageId:
+        !FindInMap [AWSAMIRegionMap, !Ref "AWS::Region", ami ]
+      InstanceType:
+        !Ref MyInstanceType
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeleteOnTermination: true
+          DeviceIndex: 0
+          SubnetId:
+            !Ref Subnet
+          GroupSet:
+            - !Ref PuppetMasterSecurityGroup
+      Tags:
+      - Key: Name
+        Value: Puppet
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeType: gp2
+            VolumeSize: 50
+      UserData:
+        "Fn::Base64": !Sub |
+           #!/bin/bash -ex
+           hostname puppet.example.com
+           sudo -i
+           sudo echo 127.0.0.1 puppet.example.com >> /etc/hosts
+           sudo apt-get update -y
+           sudo apt-get install puppetmaster -y
+           sudo service puppetmaster start
+      KeyName:
+        !Ref KeyName
+
+  PuppetMasterSecurityGroup:
+   Type: AWS::EC2::SecurityGroup
+   Properties:
+     GroupDescription: Puppet Master EC2Instance Security Group
+     SecurityGroupIngress:
+     - IpProtocol: tcp
+       ToPort: 22
+       FromPort: 22
+       CidrIp: 0.0.0.0/0
+     - IpProtocol: tcp
+       ToPort: 80
+       FromPort: 80
+       CidrIp: 0.0.0.0/0
+     - IpProtocol: tcp
+       ToPort: 8140
+       FromPort: 8140
+       CidrIp: 0.0.0.0/0
+     - IpProtocol: tcp
+       ToPort: 61613
+       FromPort: 61613
+       CidrIp: 0.0.0.0/0
+     - IpProtocol: tcp
+       ToPort: 8142
+       FromPort: 8142
+       CidrIp: 0.0.0.0/0
+     - IpProtocol: tcp
+       ToPort: 443
+       FromPort: 443
+       CidrIp: 0.0.0.0/0
+
+     VpcId: !Ref MyVPC
+     Tags:
+     - Key: Name
+       Value: PuppetMasterEc2securitygroup
+
+Outputs:
+  MyInstance:
+    Description: my EC2 instance
+    Value: !GetAtt PuppetMaster.PublicIp
